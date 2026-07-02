@@ -5,6 +5,9 @@
 **Date:** July 1, 2026
 **Supersedes:** "Project Handoff: PTO-Aware Conditional Morning Alarm" (Opus 4.8, July 1, 2026)
 
+**Rev log:**
+- **Rev 2 — July 2, 2026:** Section 8 interview completed with Jacob; answers locked in throughout (see Section 8). Volume changed 35% → **100%**. Wake audio: Claude sources a royalty-free alarm tone during the build (the Google Home's native alarm tone can't be cast — it has no media URL). Holidays: SAI observes weekend holidays on the nearest weekday. Second window re-runs the calendar check. Phase 0 network/healthchecks prep not yet done.
+
 ---
 
 ## 0. Read This First — Context for the Implementing Claude
@@ -22,7 +25,7 @@ A Raspberry Pi Zero 2 W on Jacob's home network wakes him via his **Google Home 
 - **Skip weekends** (Sat/Sun)
 - **Skip six holidays:** New Year's Day, Memorial Day, Independence Day, Labor Day, Thanksgiving, Christmas
 - **Skip PTO days:** Justworks PTO syncs to Google Calendar as all-day events titled **"Your time off"** (confirmed working)
-- **On a valid workday:** set Mini volume to **35%** silently, then play a wake sound **every 5 minutes** across two windows: **5:30–6:05 AM** and **6:30–7:05 AM** Mountain Time (8 plays per window, 16 total)
+- **On a valid workday:** set Mini volume to **100%** silently, then play a wake sound **every 5 minutes** across two windows: **5:30–6:05 AM** and **6:30–7:05 AM** Mountain Time (8 plays per window, 16 total)
 
 ## 2. Architecture (Decided — Do Not Relitigate)
 
@@ -34,7 +37,7 @@ A Raspberry Pi Zero 2 W on Jacob's home network wakes him via his **Google Home 
 | Calendar access | Google Calendar **secret iCal URL** ("Secret address in iCal format" in calendar settings) fetched with `requests`, parsed with the `icalendar` library. No OAuth, no API keys. |
 | Decision timing | **Morning-of check**: the script runs at 5:25 AM, decides whether *today* is a workday, and either proceeds or exits. No night-before job, no state file. (Improvement over original spec: catches PTO added the night before.) |
 | Playback | `pychromecast`, connecting to the Mini **by fixed IP** (DHCP reservation), not mDNS discovery — this avoids the most common Cast reliability failure. |
-| Volume | `cast.set_volume(0.35)` — silent. **The original "mute trick" (volume 0 → 16 voice-created alarms → restore) is obsolete and must not be implemented.** Direct casting never speaks confirmations. |
+| Volume | `cast.set_volume(1.0)` — silent, set in code. Define it as a named constant (e.g. `ALARM_VOLUME = 1.0`) with a plain-language comment telling Jacob how to lower it (0.0–1.0 scale). **The original "mute trick" (volume 0 → 16 voice-created alarms → restore) is obsolete and must not be implemented.** Direct casting never speaks confirmations. |
 | Wake audio | An MP3 served from the Pi itself via a small local HTTP server (systemd service), so playback has zero external dependencies and personal audio is allowed (Voice Match restrictions don't apply to direct Cast). |
 | Monitoring | Free healthchecks.io check pinged on every successful morning run (including "skipped — PTO/weekend/holiday" runs). Jacob gets an email if the Pi dies. |
 
@@ -53,11 +56,11 @@ A Raspberry Pi Zero 2 W on Jacob's home network wakes him via his **Google Home 
 - Official 5V power supply (micro-USB)
 - No HDMI cable, keyboard, or case required — this is a **headless** build (SSH only)
 
-**To set up before the Pi arrives:**
-1. Router: create **DHCP reservations** (fixed IPs) for the Google Home Mini and, later, the Pi. Record both IPs.
+**To set up before the Pi arrives** *(status as of July 2, 2026: none of these done yet)*:
+1. Router: create **DHCP reservations** (fixed IPs) for the Google Home Mini and, later, the Pi. Record both IPs. ⏳ Not yet done — required before Phase 2.
 2. Google Calendar (web): Settings → the calendar receiving Justworks PTO → "Integrate calendar" → copy the **Secret address in iCal format**. Treat it like a password.
-3. Create a free **healthchecks.io** account; create one check with a daily schedule and a generous grace window; copy the ping URL.
-4. Choose/prepare the wake-sound MP3 (see interview question Q1).
+3. Create a free **healthchecks.io** account; create one check with a daily schedule and a generous grace window; copy the ping URL. ⏳ Not yet done — needed by Phase 6; the ping URL lives only on the Pi, never in this repo.
+4. Wake-sound MP3: **resolved** — the implementing Claude sources a royalty-free alarm tone during the build; Jacob approves it in Phase 2 testing. Same sound for both windows. (The Mini's native alarm tone is not an option: it exists only inside the Assistant's alarm feature and has no media URL to cast.)
 
 ## 4. Implementation Phases
 
@@ -82,7 +85,7 @@ A Raspberry Pi Zero 2 W on Jacob's home network wakes him via his **Google Home 
 ### Phase 4 — Decision logic
 - `decide.py` (or a function within the main script) answering one question: **"Is today a wake day?"**
   1. **Weekday check** — `datetime.now()` local; Sat/Sun → no.
-  2. **Holiday check** — the six holidays. ⚠️ **Observed-date nuance (see interview Q2):** in 2026, July 4 falls on a Saturday; most employers observe Friday July 3. The list must match Jacob's *company's observed dates*, not the nominal calendar dates. Recommended: the Python `holidays` library filtered to the six, with observed-date handling — but confirm against Jacob's actual company calendar.
+  2. **Holiday check** — the six holidays. **Confirmed (interview Q2): SAI observes weekend holidays on the nearest weekday** (e.g., Friday July 3 for July 4, 2026). Use the Python `holidays` library filtered to the six, with observed-date handling enabled.
   3. **PTO check** — fetch the secret iCal URL, parse with `icalendar`, and check whether any all-day event titled "Your time off" overlaps today. Match generously (case-insensitive, substring) and log what was found. Handle multi-day PTO events (date ranges), noting iCal all-day events use an **exclusive** end date.
 - Robustness: if the calendar fetch fails (network blip), **default to sounding the alarm** and log the error — a spurious wake-up beats a missed one.
 - **Acceptance test:** run manually with today's date and with mocked dates (a Saturday, July 3 2026, a fake PTO day, a normal Tuesday); each returns the correct decision with a clear log line explaining why.
@@ -105,7 +108,7 @@ A Raspberry Pi Zero 2 W on Jacob's home network wakes him via his **Google Home 
 |---|---|
 | Normal Tuesday | Full 16-play sequence at 35% |
 | Saturday | Skip, logged "weekend" |
-| Fri Jul 3, 2026 (observed July 4th) | Skip, logged "holiday" — **only if company observes it; confirm** |
+| Fri Jul 3, 2026 (observed July 4th) | Skip, logged "holiday" — confirmed: SAI observes it |
 | All-day "Your time off" event today | Skip, logged "PTO" |
 | Multi-day PTO spanning today | Skip |
 | Calendar URL unreachable | **Alarm fires anyway**, error logged |
@@ -120,15 +123,17 @@ A Raspberry Pi Zero 2 W on Jacob's home network wakes him via his **Google Home 
 
 For the record, one no-hardware architecture exists: Google Apps Script (free, built-in Calendar access, nightly trigger) flips a SmartThings **virtual switch** via the SmartThings REST API; the switch appears in Google Home via the standard SmartThings link; a Google Home script-editor automation fires weekday mornings **conditioned on that switch**, using `OkGoogle` actions for volume and media. Limitations: public media only (Voice Match), best-effort reliability, three-cloud dependency chain, and the linked-switch-as-script-condition combo is **unverified end-to-end** — requires a proof-of-concept before building on it. This is a fallback, not the plan.
 
-## 8. Interview Jacob Before Writing Code
+## 8. Interview Jacob Before Writing Code — ✅ COMPLETED July 2, 2026
 
-1. **Wake audio:** What should play? A single MP3 he supplies, a generated tone, something else? Same sound for both windows?
-2. **Holiday observed dates:** Does SAI observe holidays on the nearest weekday when they fall on weekends (e.g., Fri Jul 3, 2026)? Get the actual company list if possible.
-3. **Mini's fixed IP and the Pi's chosen hostname/IP** (from Phase 0 router work).
-4. **Volume check:** Is 35% still right? (Easy to change later; confirm the constant.)
-5. **Second window decision re-check:** OK with re-running the calendar check at 6:30 (recommended), or trust the 5:25 result?
-6. **healthchecks.io** ping URL, once created.
+Answers are locked in; the implementing session does not need to re-ask these.
+
+1. **Wake audio:** Jacob asked for the Google Home's default alarm tone — not possible (it has no castable media URL). **Decision: the implementing Claude finds a suitable royalty-free alarm tone during the build**; Jacob approves it in Phase 2 testing. Same sound for both windows.
+2. **Holiday observed dates:** **Yes — SAI observes weekend holidays on the nearest weekday.** Use observed-date handling (e.g., skip Fri Jul 3, 2026).
+3. **Mini's fixed IP / Pi hostname:** **Not set up yet.** DHCP reservations still to do (Phase 0). Collect the actual IPs at the start of the build session, before Phase 2.
+4. **Volume:** **100%** (`1.0`), up from the specced 35% — Jacob currently uses 100%. Put it in a named constant with a plain-language code comment explaining how to adjust it.
+5. **Second window decision re-check:** **Re-run the calendar check at 6:30** (as recommended). Each cron job is self-contained; no shared state.
+6. **healthchecks.io:** **Not created yet.** Needed by Phase 6; the ping URL goes only onto the Pi, never into this repo (no-secrets convention).
 
 ## 9. One-Paragraph Summary
 
-A Raspberry Pi Zero 2 W runs the entire system: a 5:25 AM cron job fetches Jacob's Google Calendar via its secret iCal URL, decides whether today is a workday (weekday, not one of six company-observed holidays, no "Your time off" PTO event), and if so casts a locally-hosted MP3 to the Google Home Mini (by fixed IP via pychromecast) every 5 minutes across 5:30–6:05 and 6:30–7:05 at 35% volume — set silently in code, no mute trick, no voice announcements. No cloud services except a healthchecks.io dead-man ping so Jacob knows if the Pi ever goes down. On any calendar-fetch failure, the alarm fires anyway. Build it phase by phase with the acceptance tests above, and explain every piece of code in plain language as you go.
+A Raspberry Pi Zero 2 W runs the entire system: a 5:25 AM cron job fetches Jacob's Google Calendar via its secret iCal URL, decides whether today is a workday (weekday, not one of six company-observed holidays, no "Your time off" PTO event), and if so casts a locally-hosted MP3 (a royalty-free alarm tone sourced during the build) to the Google Home Mini (by fixed IP via pychromecast) every 5 minutes across 5:30–6:05 and 6:30–7:05 at 100% volume — set silently in code, no mute trick, no voice announcements. No cloud services except a healthchecks.io dead-man ping so Jacob knows if the Pi ever goes down. On any calendar-fetch failure, the alarm fires anyway. Build it phase by phase with the acceptance tests above, and explain every piece of code in plain language as you go.
