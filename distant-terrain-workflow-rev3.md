@@ -196,6 +196,66 @@ Condensed steps (full detail in the Rev 2 doc):
 
 ---
 
+## Appendix B — Close-up terrain from 1 m seamless data (contour → DXF)  ★ NEW
+
+**When to use:** the site itself (not distant context) needs accurate near-field terrain, and the area is covered by USGS **3DEP 1-meter seamless** lidar-derived DEM. Output target here is a **contour `.dxf`**, so this runs on the Appendix A route — *not* the default points-CSV route in Stage 3A.
+
+The shared QGIS front end is the same (load → clip → normalize → contour → export DXF → Revit). The list below is only the **deltas** versus the 30 m distant workflow. Where a step isn't mentioned, it's unchanged.
+
+### B-1 — Check the CRS *before* reprojecting (biggest divergence)
+
+Stage 2A assumes the DEM arrives in **EPSG:4326** (lat/long). That's true for the 1 arc-second (30 m) product but **not** for the 1 m product: 3DEP 1 m tiles are almost always delivered **already projected in UTM meters** (NAD83, local zone).
+
+1. Drop the `.tif` into QGIS and read the layer CRS (bottom-right, or Layer Properties → Information).
+2. **If it's already UTM 13N (EPSG:26913):** the Warp/Reproject step (2B) is a no-op — **skip it.** Do not reproject an already-projected raster back through 4326.
+3. **If the zone or datum realization differs** (e.g. a different UTM zone, or NAD83(2011) vs. the project's 26913): run 2B once, Bilinear, target EPSG:26913.
+
+### B-2 — Clip *tight* (1 m is ~900× denser than 30 m)
+
+Per unit area, 1 m data carries ~900 pixels where the 30 m product had one. Close-up means a small extent anyway — keep it that way. A loose extent produces an enormous contour set and a heavy DXF. Clip to just the near-field site footprint you actually need contoured.
+
+### B-3 — Confirm bare-earth, then plan to smooth
+
+The 3DEP 1 m seamless is bare-earth (DTM), which is correct. But at a fine contour interval, 1 m lidar contours come out **jagged and busy** — every micro-bump and any residual vegetation/structure artifact shows. Mitigate with **one** of:
+
+- **Smooth the raster before contouring:** a low-pass / small focal-mean / Gaussian filter (`Raster → Analysis`, or a focal statistics tool). Preferred — cleans the source once.
+- **Smooth the contour lines after:** `Processing Toolbox → Vector geometry → Smooth`.
+
+This step does not exist in the distant workflow, where 30 m data is already smooth.
+
+### B-4 — Set the contour interval (this is the "finer contours" knob)
+
+`Raster → Extraction → Contour` on the **normalized** raster (Stage 2D output). Set the **interval** field to your target:
+
+- **1 m** or **0.5 m** for metric close-up work,
+- **2 ft** if matching a survey standard (remember the pipeline is in meters — pick the metric equivalent or reconcile units downstream).
+
+Appendix A's 10–20 m interval is for distant context; ignore it here.
+
+### B-5 — Normalization: decide deliberately
+
+Distant context subtracts `Z₀` to drop terrain onto the project origin. For a close-up **site**, decide whether you want:
+
+- **Camera-accurate context** → keep subtracting `Z₀` as in Stage 2D, or
+- **Real / survey-tied elevations** → skip or adjust the normalization and tie to your benchmark instead.
+
+Don't blindly subtract `Z₀` if this terrain is becoming actual site context that needs to read at true datum.
+
+### B-6 — Export DXF (same gotchas, one relaxed)
+
+- Export **EPSG:26913, 3D geometry preserved (Z)** — flat contours in Revit = exported 2D.
+- **Densify by Interval is now largely unnecessary:** at a 1 m contour interval the vertices are already dense, so Revit's corner-cutting problem is small. Skip densify unless the imported surface still looks faceted.
+- Revit: Link CAD with **Auto – Center to Center** (UTM coordinates sit ~400 km from origin; "Origin to Internal Origin" fails). Unchanged from Appendix A.
+
+### B-7 — Acceptance checks
+
+- [ ] CRS confirmed before any reproject; no accidental 4326 round-trip.
+- [ ] Contour count / DXF size is sane — if it's huge, the clip was too loose or the interval too fine.
+- [ ] Contours read clean, not shredded by lidar noise — if noisy, apply B-3 smoothing and re-contour.
+- [ ] Contours import into Revit with correct Z (not flat).
+
+---
+
 ## Rejected alternatives (carried, unchanged)
 
 - *Cesium streaming into D5:* requires Cesium token + D5 for Teams; SAI has neither. Online-only, season-locked satellite texture. **Don't revisit unless SAI acquires both.**
@@ -208,6 +268,7 @@ Condensed steps (full detail in the Rev 2 doc):
 
 ## Revision log
 
+- **Rev 3.1 (July 9, 2026):** Added Appendix B — close-up terrain from 3DEP 1 m seamless lidar data on the contour→DXF route. Key deltas: 1 m tiles arrive already projected (check CRS, likely skip the reproject), clip tight (~900× denser than 30 m), smooth to tame lidar noise, fine contour interval, and densify no longer needed.
 - **Rev 3 (July 7, 2026):** Route A rebuilt from contour DXF to points CSV (root cause: Revit vertex-sampling/triangulation inaccuracy on contour imports). XY rebasing step added (no positioning dialog for points files). Resolution control added to Stage 2B warp as the point-density dial. Point-budget table added. Contour route demoted to Appendix A fallback with densify improvement. Header-row uncertainty flagged for field verification.
 - **Rev 2 (July 1, 2026):** Clip moved before contouring; elevation normalization added; Revit positioning corrected to Center-to-Center; 1 arc-second DEM default; D5 heightmap route added; Cesium rejected.
 - **Rev 1 (Opus):** Original pipeline, alternatives analysis, site table, troubleshooting base.
