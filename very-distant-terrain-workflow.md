@@ -56,6 +56,20 @@ Fill this in for your view. You'll read most of it off Google Maps and (later) o
 
 > **What is EPSG:26913?** It's just a code name for "NAD83 UTM Zone 13N," a coordinate system that measures position in **meters** (eastings/northings) instead of degrees. All of central Colorado uses Zone 13N. If your project is somewhere else, look up its UTM zone, but for anything around Breckenridge/Summit County it's 26913.
 
+### Decide this first: one view direction, or several?
+
+The midpoint trick in Step 10 centers Revit's origin on the middle of **one** view corridor. If the job looks in **more than one direction** — e.g. east toward the Divide *and* southwest toward a different peak — you **cannot** center a single origin on both at once; whichever range you don't optimize for ends up far from the origin again.
+
+**Do this instead: build one separate backdrop toposolid per view direction.** No single camera sees two directions at once, so the backdrops never need to sit correctly *relative to each other*. For each direction:
+
+- run Steps 4–15 as its own mini-job (its own clip corridor, its own midpoint `X₀`/`Y₀`, its own CSV, its own toposolid);
+- position each toposolid for the camera that looks that way;
+- in each render view, **hide the backdrop(s) you're not using** (Visibility/Graphics, or select → Hide in View), so the two don't clutter each other.
+
+This keeps every patch close to the origin and cleanly framed. Only the *far* directions need the midpoint trick — a nearer view (under ~12–15 km) can use the simpler site-centered rebase (put `X₀`/`Y₀` on the viewpoint itself).
+
+> See the **Worked example** at the end for how this plays out on the Breckenridge east + southwest views.
+
 ---
 
 ## 4. Download the elevation data (DEM) from USGS
@@ -287,3 +301,28 @@ Because 18 miles is near Revit's comfort edge, prove it works small before commi
 14. Position by camera; add **Enscape haze**.
 
 **The one non-obvious rule:** for anything past ~15 km, rebase to the **midpoint of the view**, not the site — otherwise Revit chokes on the distance from origin.
+
+---
+
+## Appendix: Worked example — Breckenridge Ski Resort (east & southwest)
+
+**Viewpoint:** Breckenridge Ski Resort, ≈ 39.48° N, −106.07° W (UTM Zone 13N / EPSG:26913).
+
+This job has **two view directions**, so it's **two separate backdrop patches** (see "Decide this first" in Section 3). Build each independently and toggle visibility per render view.
+
+### East view — over the Continental Divide to Grays & Torreys Peaks
+
+- **Target:** Grays Peak (14,270 ft) and Torreys Peak (14,267 ft), on the Divide.
+- **Distance & bearing:** ≈ **17 miles (~27–28 km)**, bearing **northeast (~52° from north)** — the peaks sit NE of the resort, so draw the Step 8 clip corridor **toward the northeast, not due east**, or you'll clip them off.
+- **This is a true very-distant view:** use the **150 m** resolution (Step 7) and the **midpoint rebase** (Step 10) — center `X₀`/`Y₀` about **14 km NE of the resort** so the resort and the peaks each sit only ~14 km from the origin.
+- **DEM tiles (Step 4):** the corridor crosses a tile line, so download **both** and Merge them (Step 6):
+  - `n40w107` — contains the resort,
+  - `n40w106` — contains Grays & Torreys.
+
+### Southwest view — Mount Baldy  *(needs confirmation before running)*
+
+- **Heads-up on the name:** the well-known **Bald Mountain (13,684 ft) sits just *east* of Breckenridge town**, not southwest — so the *southwest* "Mount Baldy" is likely a **different peak**. Confirm the exact summit (drop a Google Maps pin → read its lat/long) before downloading anything.
+- **Then decide two things from its position:**
+  - **DEM tile:** if the summit is in the longitude band −107° to −106°, it's on the **same `n40w107`** tile as the resort (no extra download). If it's **south of 39° N**, also grab **`n39w107`**.
+  - **Rebase method:** measure resort → summit distance. **Under ~12–15 km** → use the **standard site-centered rebase** (`X₀`/`Y₀` on the resort; skip the midpoint trick). **Farther than that** → use the **midpoint rebase**, same as the east view.
+- Fill in the confirmed distance, bearing, and tile(s) here once the summit is pinned.
