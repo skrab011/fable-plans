@@ -304,25 +304,24 @@ Because 18 miles is near Revit's comfort edge, prove it works small before commi
 
 ---
 
-## Appendix: Worked example — Breckenridge Ski Resort (east & southwest)
+## Appendix: Worked example — Breckenridge, Vista Haus on Peak 8
 
-**Viewpoint:** Breckenridge Ski Resort, ≈ 39.48° N, −106.07° W (UTM Zone 13N / EPSG:26913).
+**Building / viewpoint:** the **Vista Haus** restaurant near the top of Peak 8, Breckenridge — ≈ 39.478° N, −106.078° W, elevation ≈ **11,300 ft (~3,440 m)**. UTM Zone 13N / EPSG:26913. Read the exact `X₀`/`Y₀`/`Z₀` off QGIS at the building; the numbers here are just for planning.
 
-This job has **two view directions**, so it's **two separate backdrop patches** (see "Decide this first" in Section 3). Build each independently and toggle visibility per render view.
+**Both target views point east/southeast**, within roughly a 30° fan, so they **share a single eastward backdrop patch** — you do *not* need two. (The "one patch per direction" rule in Section 3: here both views *are* the same direction, so they collapse into one.)
 
-### East view — over the Continental Divide to Grays & Torreys Peaks
+- **Foreground — Mount Baldy** (Bald Mountain, 13,684 ft): ≈ **5 miles (~8 km)** east/ESE of Vista Haus. Close enough to import fine on its own, but it sits on the way to the Divide, so one clip captures it too.
+- **Backdrop — Grays & Torreys Peaks** (14,270 / 14,267 ft): ≈ **17.5 miles (~28 km)** northeast (~52° bearing).
 
-- **Target:** Grays Peak (14,270 ft) and Torreys Peak (14,267 ft), on the Divide.
-- **Distance & bearing:** ≈ **17 miles (~27–28 km)**, bearing **northeast (~52° from north)** — the peaks sit NE of the resort, so draw the Step 8 clip corridor **toward the northeast, not due east**, or you'll clip them off.
-- **This is a true very-distant view:** use the **150 m** resolution (Step 7) and the **midpoint rebase** (Step 10) — center `X₀`/`Y₀` about **14 km NE of the resort** so the resort and the peaks each sit only ~14 km from the origin.
-- **DEM tiles (Step 4):** the corridor crosses a tile line, so download **both** and Merge them (Step 6):
-  - `n40w107` — contains the resort,
-  - `n40w106` — contains Grays & Torreys.
+**How to run it:**
 
-### Southwest view — Mount Baldy  *(needs confirmation before running)*
+1. **Clip (Step 8):** draw one wide **fan east–northeast** from Vista Haus, covering both targets (bearings ~50°–85°) out to ~30 km, just past Grays/Torreys.
+2. **Resolution (Step 7):** use **200 m** here — the combined fan is large, and 200 m keeps it near ~11,000 points. (150 m would push it over the 20k ceiling.)
+3. **Rebase (Step 10):** center `X₀`/`Y₀` on the **center of that clipped fan** (~12 km ENE of Vista Haus), not on the building. That puts both Vista Haus and Grays/Torreys ~15 km from the origin — inside Revit's comfort zone.
+4. **DEM tiles (Step 4):** download **both** and Merge (Step 6) — the fan crosses the −106° tile line:
+   - `n40w107` — Vista Haus,
+   - `n40w106` — Baldy **and** Grays/Torreys.
 
-- **Heads-up on the name:** the well-known **Bald Mountain (13,684 ft) sits just *east* of Breckenridge town**, not southwest — so the *southwest* "Mount Baldy" is likely a **different peak**. Confirm the exact summit (drop a Google Maps pin → read its lat/long) before downloading anything.
-- **Then decide two things from its position:**
-  - **DEM tile:** if the summit is in the longitude band −107° to −106°, it's on the **same `n40w107`** tile as the resort (no extra download). If it's **south of 39° N**, also grab **`n39w107`**.
-  - **Rebase method:** measure resort → summit distance. **Under ~12–15 km** → use the **standard site-centered rebase** (`X₀`/`Y₀` on the resort; skip the midpoint trick). **Farther than that** → use the **midpoint rebase**, same as the east view.
-- Fill in the confirmed distance, bearing, and tile(s) here once the summit is pinned.
+**Expectation check:** from 11,300 ft, Grays/Torreys sit only ~900 m above the camera and Baldy ~725 m — a substantial but *not* towering eastern skyline, which is correct for this vantage. Lean on Enscape haze (Step 16) to push the distant Divide back and let the nearer Baldy carry a little more contrast.
+
+> **Optional — if Baldy is a hero element.** If the client wants Mount Baldy rendered with more crispness (it's the closest peak), give it its **own separate patch** at a finer ~90–100 m resolution, **site-centered on Vista Haus** (it's under ~12 km, so no midpoint trick needed), and keep the coarse 200 m fan just for the distant Divide behind it. Otherwise, one combined patch is simplest.
