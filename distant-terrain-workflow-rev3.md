@@ -91,6 +91,8 @@ Log these in the handoff doc per site — they're the site's permanent rebasing 
 
 > **Why:** Revit places CSV points at their literal coordinates relative to the internal origin, and there is **no positioning dialog** for points files. UTM coordinates sit hundreds of kilometers out — far past Revit's geometry-distance limit. Subtracting `X₀`/`Y₀` puts the site at (0, 0), so the terrain lands centered on the internal origin. This is the XY twin of the elevation normalization in 2D: after both, the site sits at (0, 0, 0).
 
+> **Very-distant views (>15 km / 10+ miles):** rebasing to the *site* pushes far peaks toward Revit's ~33 km origin limit and they import badly. Rebase to the **midpoint of the view** instead. See **`very-distant-terrain-workflow.md`** for the full standalone procedure (multi-view handling, point budgets, and a Breckenridge / Vista Haus worked example).
+
 ### 3A-2 — Confirm the point budget
 
 Rough point count = (clip width ÷ resolution) × (clip height ÷ resolution). Check against this table *before* converting — if it's too heavy, re-run Stage 2B with a coarser resolution rather than fighting a bloated toposolid in Revit.
@@ -278,3 +280,4 @@ Don't blindly subtract `Z₀` if this terrain is becoming actual site context th
 ## Related files
 
 - `terrain-handoff.md` — session-level handoff (update its "immediate next steps" to point at the Rev 3 stages).
+- `very-distant-terrain-workflow.md` — standalone, no-prior-knowledge guide for terrain past ~15 km (10+ miles) on the Revit/Enscape route. Adds the midpoint-rebasing trick that keeps far peaks inside Revit's origin limit, plus multi-view handling and a Breckenridge / Vista Haus worked example. Share this with team members running distant backdrops.
