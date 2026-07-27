@@ -325,3 +325,15 @@ Because 18 miles is near Revit's comfort edge, prove it works small before commi
 **Expectation check:** from 11,300 ft, Grays/Torreys sit only ~900 m above the camera and Baldy ~725 m — a substantial but *not* towering eastern skyline, which is correct for this vantage. Lean on Enscape haze (Step 16) to push the distant Divide back and let the nearer Baldy carry a little more contrast.
 
 > **Optional — if Baldy is a hero element.** If the client wants Mount Baldy rendered with more crispness (it's the closest peak), give it its **own separate patch** at a finer ~90–100 m resolution, **site-centered on Vista Haus** (it's under ~12 km, so no midpoint trick needed), and keep the coarse 200 m fan just for the distant Divide behind it. Otherwise, one combined patch is simplest.
+
+### Verify these before committing (the numbers above are planning estimates)
+
+Every figure in this example was estimated off a map. Confirm each one in QGIS / on the actual view before you run the full clip — takes five minutes and saves a re-do.
+
+- [ ] **Vista Haus `X₀`/`Y₀`/`Z₀`.** Hover the building in QGIS (project CRS = EPSG:26913) and read the real easting, northing, and (via Identify → Step 9) elevation. Expect `Z₀` ≈ 3,440 m; if it's far off, re-check you clicked the restaurant, not the base.
+- [ ] **Which peaks are actually in frame.** Confirm with the PM/design that Grays & Torreys and Baldy are the intended subjects — from Peak 8 the eastern skyline also includes other Divide summits (Bald's neighbors, the Continental Divide ridge). Widen or narrow the clip fan to match what the camera really shows.
+- [ ] **Baldy's identity and distance.** Confirm the "Mount Baldy" in view is Bald Mountain (≈ 39.489° N, −105.987° W, 13,684 ft) and re-measure Vista Haus → summit. If it comes out over ~12–15 km, it needs the midpoint treatment too, not the simpler site-centered rebase.
+- [ ] **Clip-fan center for the rebase.** After clipping (Step 8), hover the actual visual center of *your* clipped fan and read `X₀`/`Y₀` there — don't reuse the "~12 km ENE" estimate.
+- [ ] **Point count.** After Raster pixels to points (Step 11), check the feature count is under ~20k. If 200 m still runs heavy, go to 250 m or tighten the fan.
+- [ ] **Max distance from origin.** After rebasing, sanity-check that the farthest point (a Grays/Torreys summit) is within ~15–16 km of (0,0). If a test import throws origin warnings, your rebase center is off.
+- [ ] **DEM coverage.** Make sure the merged `n40w107` + `n40w106` tiles actually span the whole fan with no gap at the −106° seam before you clip.
