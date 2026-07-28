@@ -143,13 +143,56 @@ You do **not** need a giant square of terrain — only the strip your camera act
 
 ---
 
+## 8A. ⭐ Cull the hidden terrain with a viewshed (optional, big payoff)
+
+*New in this revision. Skip it and the guide still works — everything downstream is unchanged. But for a mountain view it is the single biggest point-count saver, and it composes cleanly with the midpoint trick.*
+
+**The idea:** most of the DEM you just clipped can't actually be *seen* from the viewpoint — it's the back-slopes of ridges, valley floors tucked behind nearer high ground, everything the front ranges occlude. A **viewshed** computes exactly which cells are visible from your camera and lets you throw the rest away *before* they ever become toposolid points. In mountainous terrain that's commonly **half or more** of the cells gone.
+
+Two ways to spend the savings: keep the lighter point count as-is, or go back to Step 7 and drop the resolution to `90–120` so the *visible* ridgelines come in crisper for the same budget. Either is a win.
+
+> **This does not replace the midpoint trick.** The visible far peaks are still ~28 km out. Viewshed cuts the *number* of points; the Step 10/12 midpoint rebasing keeps their *coordinates* inside Revit's origin limit. You still do both.
+
+### Get the observer's coordinates
+
+The viewshed observer is the **camera / viewpoint** — *not* the strip midpoint you'll read in Step 10. Hover the mouse over the viewpoint (the Vista Haus building) and read the two Coordinate numbers at the bottom of the window (they're in meters because of Step 5). Note them as `Xobs`, `Yobs`.
+
+### Run the viewshed (GRASS `r.viewshed` — already bundled with QGIS)
+
+1. Open the **Processing Toolbox**, search **`r.viewshed`**, double-click it.
+2. **Input elevation raster:** the **`Clipped`** layer from Step 8 (use the *true-elevation* clip, before Step 9's normalize — line-of-sight math wants real heights, and normalizing first would work too but keep it simple).
+3. **Coordinates of the viewing position:** type `Xobs,Yobs` (comma-separated), or click the `…` and pick the point on the map at the viewpoint.
+4. **Observer elevation (height above ground):** set this to the **actual render-camera height in your Revit model**, not the 1.75 m default. If the camera sits on an upper floor, a deck, or behind tall second-storey glass, it sees over ridges a ground-level observer doesn't — get this right or you'll cull terrain that's genuinely in shot. For a ground-level exterior eye, ~1.7 is fine.
+5. **Target elevation:** `0` (or a small positive value like `2` to be slightly generous at ridge crests).
+6. **Maximum visibility distance:** set to just past your farthest peak — e.g. `30000` (meters) for the Breckenridge view. (`-1` = unlimited, but capping it is faster.)
+7. **Check "Consider the earth curvature and refraction"** (the `-c` flag). **This is not optional at 28 km** — earth curvature drops the horizon by ~55–60 m at that range, so a flat-earth viewshed would wrongly mark low distant terrain as visible. Leave the refraction coefficient at its `0.14286` default.
+8. **Check "Output format is invisible = 0, visible = 1"** (the `-b` boolean flag) — it makes the next step trivial.
+9. **Run.** You get a `Viewshed` raster: 1 where visible, 0 where hidden.
+
+### Turn the mask into a holey DEM
+
+Now keep elevations only where visible, and set everything else to "no data" so it produces no points later.
+
+1. Processing Toolbox → search **`r.mapcalc.simple`**, double-click.
+2. Map **A** = `Viewshed`, **B** = `Clipped`.
+3. **Expression:** `if(A == 1, B, null())`
+4. **Output** → name it `terrain_visible`, **Run**.
+
+`terrain_visible` is your clipped DEM with all the hidden cells punched out to null. **Use it in place of `Clipped` from here on** — feed it into Step 9's Raster Calculator, and Step 11's "Raster pixels to points" will skip the null cells automatically.
+
+> **Optional — protect marginal ridgelines.** A summit sitting a hair below the geometric horizon can still show its tip through haze. To avoid a hard cull clipping it: before the mapcalc step, run GRASS **`r.grow`** on the `Viewshed` raster with `radius = 2` to fatten the visible mask by a cell or two, and use *that* grown mask as `A`. Not required — just insurance.
+
+> ⚠️ **Uncertainty flag — Revit bridges the gaps (verify on the first run).** Revit's Points-File import auto-triangulates the point set and will **not** leave holes where you culled — it spans each hidden gap with a large flat triangle. By construction those bridges sit over terrain that *isn't visible from this camera*, so they normally hide behind the front ridge. **But it isn't guaranteed:** a bridge anchored on two high visible points across a low hidden valley can occasionally ride up into frame. On your first viewshed run, check the render (Step 16) for any flat web on the skyline. If one intrudes, the fix is to cull *conservatively* — use the viewshed to remove only the **large contiguous hidden blocks** (the whole back of a range, deep valleys), not fine speckle inside the visible zone, since scattered single-cell holes are what Revit bridges most visibly. Resolve this on the Vista Haus run and note the outcome here.
+
+---
+
 ## 9. Normalize the elevations (drop the terrain down to your building's level)
 
 The DEM stores *true* elevations above sea level — around 2,900 m at Breckenridge, ~4,000 m at the peaks. If you imported that as-is, the terrain would float kilometers above your model. So we subtract the viewpoint's elevation to bring the ground to ≈ 0.
 
 1. Click the **Identify Features** tool (the blue ⓘ arrow in the toolbar), then click your **viewpoint** location on the map. A panel shows the elevation value there. **Write it down** — call it **`Z₀`** (for Breckenridge, ~2,900).
 2. Top menu: **Raster → Raster Calculator**.
-3. In the expression box, build: `"Clipped@1" - 2900` (use *your* `Z₀`, and your clipped layer's name — double-click it in the list on the left so it's spelled exactly right).
+3. In the expression box, build: `"Clipped@1" - 2900` (use *your* `Z₀`, and your clipped layer's name — double-click it in the list on the left so it's spelled exactly right). **If you did Step 8A, use `"terrain_visible@1"` here instead of `"Clipped@1"`** so the culling carries through.
 4. Set an output filename like `terrain_normalized`, click **OK**.
 
 Now the viewpoint sits at elevation ≈ 0 and the peaks read as their height *above the viewpoint*. Negative numbers (ground lower than the viewpoint) are normal and fine.
@@ -192,6 +235,8 @@ Revit's terrain wants a list of individual XYZ points. This converts every grid 
 | Under ~15,000 | You're good — continue. |
 | 15,000–20,000 | Acceptable, but Revit may feel heavy. Fine to continue. |
 | Over ~20,000 | Go back to **Step 7**, set resolution to `200` (or clip tighter in Step 8), and re-run. Don't fight a bloated import in Revit. |
+
+> **If you did the viewshed (Step 8A)** the count will be well under budget — often less than half. You can leave it light, or reinvest: go back to **Step 7**, set resolution to `90–120`, and re-run through 8A. Same point budget, crisper visible ridgelines.
 
 ---
 
@@ -258,6 +303,7 @@ Because 18 miles is near Revit's comfort edge, prove it works small before commi
 - [ ] The 3D view orbits without lag.
 - [ ] Spot-check a summit: a peak's Z value should read roughly *(true peak elevation − `Z₀`)*. E.g. a 3,900 m peak with `Z₀` = 2,900 should sit ~+1,000 m above the viewpoint.
 - [ ] Through the **actual render camera**, the range reads as the right shape in the right place. *This is the only test that ultimately matters.*
+- [ ] **If you did the viewshed (Step 8A):** no flat bridging triangle rises onto the skyline where hidden terrain was culled. If one does, see the Step 8A uncertainty flag (cull large blocks only, not speckle).
 
 ---
 
@@ -280,6 +326,9 @@ Because 18 miles is near Revit's comfort edge, prove it works small before commi
 | Terrain arrives **stretched sideways** | Reproject skipped | Re-run Step 7 (Warp to EPSG:26913). |
 | Revit is **slow / heavy** | Too many points | Coarsen resolution to `200` in Step 7 or clip tighter in Step 8; stay under ~20,000 points. |
 | Mountains look **too crisp / fake** in the render | Not a geometry problem | Add Enscape haze/fog (Step 16). Distance should soften them. |
+| **Flat web / spanning triangle** across the skyline | Revit bridged a culled hidden gap (Step 8A) | Expected over hidden zones; only a problem if it's *visible*. Re-run 8A culling large contiguous blocks only, not fine speckle. See the Step 8A flag. |
+| Viewshed keeps **too much** distant low terrain | Earth curvature not applied | Re-run `r.viewshed` (Step 8A) with the `-c` curvature flag checked. |
+| Viewshed **clips a summit** that should show | Observer height too low, or hard mask edge | Set the observer elevation to the real camera height (Step 8A.4); optionally `r.grow` the mask (Step 8A optional note). |
 
 ---
 
@@ -291,14 +340,15 @@ Because 18 miles is near Revit's comfort edge, prove it works small before commi
 4. Load tile(s); **Merge** if more than one.
 5. **Warp/Reproject** → EPSG:26913, Bilinear, resolution **150**.
 6. **Clip** a ~15 km-wide corridor toward the range.
-7. **Identify** viewpoint elevation `Z₀`; **Raster Calculator** subtract it.
-8. Hover the **strip midpoint**; note `X₀`, `Y₀`.
-9. **Raster pixels to points**; check count (target 8–15k, max 20k).
-10. **Refactor fields** → `x = $x - X₀`, `y = $y - Y₀`, `z = "VALUE"`.
-11. **Export CSV** (No geometry; fields x,y,z).
-12. **Test-import** a small band in Revit.
-13. **Toposolid → Create from Import → Points File**, units **Meters**.
-14. Position by camera; add **Enscape haze**.
+7. *(Optional, big win)* **Viewshed cull** — `r.viewshed` from the viewpoint (curvature `-c` on, boolean `-b`, real camera height, max dist past the peaks) → `r.mapcalc.simple` `if(A==1,B,null())` → `terrain_visible`. Use it downstream.
+8. **Identify** viewpoint elevation `Z₀`; **Raster Calculator** subtract it (input = `terrain_visible` if you did the viewshed).
+9. Hover the **strip midpoint**; note `X₀`, `Y₀`.
+10. **Raster pixels to points**; check count (target 8–15k, max 20k).
+11. **Refactor fields** → `x = $x - X₀`, `y = $y - Y₀`, `z = "VALUE"`.
+12. **Export CSV** (No geometry; fields x,y,z).
+13. **Test-import** a small band in Revit.
+14. **Toposolid → Create from Import → Points File**, units **Meters**.
+15. Position by camera; add **Enscape haze**.
 
 **The one non-obvious rule:** for anything past ~15 km, rebase to the **midpoint of the view**, not the site — otherwise Revit chokes on the distance from origin.
 
@@ -337,3 +387,11 @@ Every figure in this example was estimated off a map. Confirm each one in QGIS /
 - [ ] **Point count.** After Raster pixels to points (Step 11), check the feature count is under ~20k. If 200 m still runs heavy, go to 250 m or tighten the fan.
 - [ ] **Max distance from origin.** After rebasing, sanity-check that the farthest point (a Grays/Torreys summit) is within ~15–16 km of (0,0). If a test import throws origin warnings, your rebase center is off.
 - [ ] **DEM coverage.** Make sure the merged `n40w107` + `n40w106` tiles actually span the whole fan with no gap at the −106° seam before you clip.
+- [ ] **Viewshed sanity (if using Step 8A).** After `terrain_visible`, eyeball the mask: the visible cells should form the ridgelines and near-facing slopes you'd expect to see, with the back-sides and hidden valleys punched out. If almost everything is still "visible," the curvature flag or observer height is likely wrong.
+
+---
+
+## Revision log
+
+- **Rev 1.1 (July 28, 2026):** Added Step 8A — optional viewshed culling (`r.viewshed` + `r.mapcalc.simple`) to drop terrain that isn't visible from the camera, cutting point count (often by half or more) and freeing budget for finer resolution. Wired it into Steps 9/11, the quick-reference card, troubleshooting, and acceptance checks. Carries an unverified flag: Revit bridges culled gaps with flat triangles — normally hidden, but verify on the first Vista Haus run.
+- **Rev 1 (July 2026):** Original standalone very-distant (>15 km) guide with the midpoint-rebasing trick, multi-view handling, and the Breckenridge / Vista Haus worked example.
