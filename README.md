@@ -24,8 +24,10 @@ Four kinds of documents, each with a different job:
 | `pi-consolidation-handoff.md` | Handoff/plan | Awaiting execution — gated on the Option A/B decision + hardware confirmation |
 | `revit-tool-CLAUDE.md` | CLAUDE.md | Awaiting execution — copy to the kitchen-equipment tool repo when created |
 | `revit-tool-implementation-plan.md` | Implementation plan | Awaiting execution — Phase 1 gated on locating `script.py` |
-| `distant-terrain-workflow.md` | Workflow reference | **Active, Rev 2** — mid-run on Summerwood; Route A (Enscape/Toposolid) and Route B (D5 heightmap) |
-| `terrain-handoff.md` | Handoff/plan | **Active, Rev 2** — companion to the workflow doc; resume at the raster clip step |
+| `distant-terrain-workflow-rev3.md` | Workflow reference | **Active, Rev 3** — Route A (Revit points-CSV toposolid) + Route B (D5 heightmap) off one QGIS pipeline. Supersedes `distant-terrain-workflow(1).md` (Rev 2, retained for history) |
+| `very-distant-terrain-workflow.md` | Workflow reference | **Active, Rev 1.1** — standalone Revit/Enscape guide for terrain >15 km (10+ mi); midpoint-rebasing trick + optional viewshed cull |
+| `d5-terrain-checklist.md` | Workflow reference | **Active, Rev 1** — standalone D5-only (Route B) heightmap checklist, extended for ~20-mile views |
+| `terrain-handoff.md` | Handoff/plan | **Active, Rev 2** — companion decision record; renderer decision rule + rejected alternatives |
 
 ## Conventions
 
